@@ -1,13 +1,13 @@
 #include "core/main_menu.h"
-#include <globals.h>
-
 #include "core/powerSave.h"
 #include "core/serial_commands/cli.h"
 #include "core/utils.h"
 #include "esp32-hal-psram.h"
 #include "esp_task_wdt.h"
 #include "esp_wifi.h"
+#include <M5Unified.h>
 #include <functional>
+#include <globals.h>
 #include <string>
 #include <vector>
 io_expander ioExpander;
@@ -211,24 +211,7 @@ void begin_tft() {
     tftHeight = tft.height();
 #endif
     resetTftDisplay();
-    setBrightness(bruceConfig.bright, false);
-}
-
-/*********************************************************************
- **  Function: boot_screen
- **  Draw boot screen
- *********************************************************************/
-void boot_screen() {
-    tft.setTextColor(bruceConfig.priColor, bruceConfig.bgColor);
-    tft.setTextSize(FM);
-    tft.drawPixel(0, 0, bruceConfig.bgColor);
-    tft.drawCentreString("Bruce", tftWidth / 2, 10, 1);
-    tft.setTextSize(FP);
-    tft.drawCentreString(BRUCE_VERSION, tftWidth / 2, 25, 1);
-    tft.setTextSize(FM);
-    tft.drawCentreString(
-        "PREDATORY FIRMWARE", tftWidth / 2, tftHeight + 2, 1
-    ); // will draw outside the screen on non touch devices
+    // setBrightness(bruceConfig.bright, false);
 }
 
 /*********************************************************************
@@ -236,90 +219,62 @@ void boot_screen() {
  **  Draw boot screen
  *********************************************************************/
 void boot_screen_anim() {
-    boot_screen();
-    int i = millis();
-    // checks for boot.jpg in SD and LittleFS for customization
+    int start_time = millis();
     int boot_img = 0;
-    bool drawn = false;
+
     if (sdcardMounted) {
         if (SD.exists("/boot.jpg")) boot_img = 1;
         else if (SD.exists("/boot.gif")) boot_img = 3;
     }
     if (boot_img == 0 && LittleFS.exists("/boot.jpg")) boot_img = 2;
     else if (boot_img == 0 && LittleFS.exists("/boot.gif")) boot_img = 4;
-    if (bruceConfig.theme.boot_img) boot_img = 5; // override others
+    if (bruceConfig.theme.boot_img) boot_img = 5;
 
-    tft.drawPixel(0, 0, 0);       // Forces back communication with TFT, to avoid ghosting
-                                  // Start image loop
-    while (millis() < i + 7000) { // boot image lasts for 5 secs
-        if ((millis() - i > 2000) && !drawn) {
-            tft.fillRect(0, 45, tftWidth, tftHeight - 45, bruceConfig.bgColor);
-            if (boot_img > 0 && !drawn) {
-                tft.fillScreen(bruceConfig.bgColor);
-                if (boot_img == 5) {
-                    drawImg(
-                        *bruceConfig.themeFS(),
-                        bruceConfig.getThemeItemImg(bruceConfig.theme.paths.boot_img),
-                        0,
-                        0,
-                        true,
-                        3600
-                    );
-                    Serial.println("Image from SD theme");
-                } else if (boot_img == 1) {
-                    drawImg(SD, "/boot.jpg", 0, 0, true);
-                    Serial.println("Image from SD");
-                } else if (boot_img == 2) {
-                    drawImg(LittleFS, "/boot.jpg", 0, 0, true);
-                    Serial.println("Image from LittleFS");
-                } else if (boot_img == 3) {
-                    drawImg(SD, "/boot.gif", 0, 0, true, 3600);
-                    Serial.println("Image from SD");
-                } else if (boot_img == 4) {
-                    drawImg(LittleFS, "/boot.gif", 0, 0, true, 3600);
-                    Serial.println("Image from LittleFS");
-                }
-                tft.drawPixel(0, 0, 0); // Forces back communication with TFT, to avoid ghosting
-            }
-            drawn = true;
+    if (boot_img > 0) {
+        tft.fillScreen(bruceConfig.bgColor);
+        switch (boot_img) {
+            case 1: drawImg(SD, "/boot.jpg", 0, 0, true); break;
+            case 2: drawImg(LittleFS, "/boot.jpg", 0, 0, false); break;
+            case 3: drawImg(SD, "/boot.gif", 0, 0, true); break;
+            case 4: drawImg(LittleFS, "/boot.gif", 0, 0, true); break;
+            case 5:
+                drawImg(
+                    *bruceConfig.themeFS(),
+                    bruceConfig.getThemeItemImg(bruceConfig.theme.paths.boot_img),
+                    0,
+                    0,
+                    true,
+                    3600
+                );
+                break;
         }
-#if !defined(LITE_VERSION)
-        if (!boot_img && (millis() - i > 2200) && (millis() - i) < 2700)
-            tft.drawRect(2 * tftWidth / 3, tftHeight / 2, 2, 2, bruceConfig.priColor);
-        if (!boot_img && (millis() - i > 2700) && (millis() - i) < 2900)
-            tft.fillRect(0, 45, tftWidth, tftHeight - 45, bruceConfig.bgColor);
-        if (!boot_img && (millis() - i > 2900) && (millis() - i) < 3400)
-            tft.drawXBitmap(
-                2 * tftWidth / 3 - 30,
-                5 + tftHeight / 2,
-                bruce_small_bits,
-                bruce_small_width,
-                bruce_small_height,
-                bruceConfig.bgColor,
-                bruceConfig.priColor
-            );
-        if (!boot_img && (millis() - i > 3400) && (millis() - i) < 3600) tft.fillScreen(bruceConfig.bgColor);
-        if (!boot_img && (millis() - i > 3600))
-            tft.drawXBitmap(
-                (tftWidth - 238) / 2,
-                (tftHeight - 133) / 2,
-                bits,
-                bits_width,
-                bits_height,
-                bruceConfig.bgColor,
-                bruceConfig.priColor
-            );
-#endif
-        if (check(AnyKeyPress)) // If any key or M5 key is pressed, it'll jump the boot screen
-        {
+
+    } else {
+        tft.drawXBitmap(0, 0, bits, bits_width, bits_height, bruceConfig.bgColor, bruceConfig.priColor);
+    }
+    while (millis() < start_time + 3000) {
+        if (check(AnyKeyPress)) {
             tft.fillScreen(bruceConfig.bgColor);
             delay(10);
             return;
         }
+        delay(10);
     }
+}
 
-    // Clear splashscreen
-    tft.fillScreen(bruceConfig.bgColor);
+/*********************************************************************
+ **  Function: boot_screen
+ **  Draw boot screen
+ *********************************************************************/
+void boot_screen() {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    int centerY = tftHeight / 2;
+    int lineHeight = 20;
+    tft.setTextSize(FM);
+    tft.drawCentreString("Rain", tftWidth / 2, centerY - (lineHeight / 2), 1);
+    tft.setTextSize(FP);
+    tft.drawCentreString("Made by kemuvx", tftWidth / 2, centerY + (lineHeight / 2), 1);
 }
 
 /*********************************************************************
@@ -397,18 +352,38 @@ void setup() {
     bruceConfig.bright = 100; // theres is no value yet
     bruceConfigPins.rotation = ROTATION;
     setup_gpio();
+
+    auto cfg = M5.config();
+    M5.begin(cfg);
+
 #if defined(HAS_SCREEN)
+    M5.Lcd.setBrightness(0);
     tft.init();
-    tft.setRotation(bruceConfigPins.rotation);
-    tft.fillScreen(TFT_BLACK);
-    // bruceConfig is not read yet.. just to show something on screen due to long boot time
-    tft.setTextColor(TFT_PURPLE, TFT_BLACK);
-    tft.drawCentreString("Booting", tft.width() / 2, tft.height() / 2, 1);
+
 #else
     tft.begin();
 #endif
-    begin_storage();
+
     begin_tft();
+    boot_screen();
+    M5.Lcd.setBrightness(255);
+    begin_storage();
+
+    bruceConfig.openThemeFile(bruceConfig.themeFS(), bruceConfig.themePath, false);
+    setBrightness(bruceConfig.bright, false);
+
+    // This task keeps running all the time, will never stop
+    xTaskCreate(
+        taskInputHandler,              // Task function
+        "InputHandler",                // Task Name
+        INPUT_HANDLER_TASK_STACK_SIZE, // Stack size
+        NULL,                          // Task parameters
+        2,                             // Task priority (0 to 3), loopTask has priority 2.
+        &xHandle                       // Task handle (not used)
+    );
+
+    if (!bruceConfig.instantBoot) { boot_screen_anim(); }
+
     init_clock();
     init_led();
 
@@ -429,22 +404,11 @@ void setup() {
     // end of post gpio begin
 
     // #ifndef USE_TFT_eSPI_TOUCH
-    // This task keeps running all the time, will never stop
-    xTaskCreate(
-        taskInputHandler,              // Task function
-        "InputHandler",                // Task Name
-        INPUT_HANDLER_TASK_STACK_SIZE, // Stack size
-        NULL,                          // Task parameters
-        2,                             // Task priority (0 to 3), loopTask has priority 2.
-        &xHandle                       // Task handle (not used)
-    );
+
     // #endif
 #if defined(HAS_SCREEN)
-    bruceConfig.openThemeFile(bruceConfig.themeFS(), bruceConfig.themePath, false);
-    if (!bruceConfig.instantBoot) {
-        boot_screen_anim();
-        startup_sound();
-    }
+
+    if (!bruceConfig.instantBoot) { startup_sound(); }
     if (bruceConfig.wifiAtStartup) {
         log_i("Loading Wifi at Startup");
         xTaskCreate(
@@ -494,7 +458,6 @@ void loop() {
         previousMillis = millis(); // ensure that will not dim screen when get back to menu
     }
 #endif
-    tft.fillScreen(bruceConfig.bgColor);
 
     mainMenu.begin();
     delay(1);
