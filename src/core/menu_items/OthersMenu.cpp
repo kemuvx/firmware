@@ -26,7 +26,7 @@ void OthersMenu::optionsMenu() {
 #endif
 
 #ifndef LITE_VERSION
-        {"iButton",      setup_ibutton                },
+        {"iButton",      iButtonStateManager          },
 #endif
 
         // Timer removed - moved to another "Clock"

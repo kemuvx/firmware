@@ -2,47 +2,119 @@
 #include "ibutton.h"
 #include "core/display.h"
 #include "core/mykeyboard.h"
-
+#include <array>
 #define ONE_WIRE_BUS 0
 
-OneWire *oneWire;
+OneWire *oneWire = nullptr;
 byte buffer[8];
 
-void setup_ibutton() {
-Reset:
-    oneWire = new OneWire(bruceConfigPins.iButton);
-    tft.fillScreen(TFT_BLACK);
-    setiButtonPinMenu();
-    drawMainBorderWithTitle("iButton");
-    tft.setCursor(10, 50);
-    padprintln("Waiting for signal");
-    padprintln("press [Next] to setup");
-    delay(100);
+namespace {
+enum class state { SETUP, READING, WRITING };
+auto currentState = state::SETUP;
 
-    for (;;) {
-        if (check(EscPress)) {
-            returnToMenu = true;
-            delete oneWire;
-            break;
+std::array<byte, 8> currentId;
+bool hasId = false;
+
+int pin = 0; // G0
+bool hasPin = true;
+bool hasError = false;
+bool screenNeedsUpdate = true;
+} // namespace
+
+void iButtonStateManager() {
+    if (oneWire == nullptr) { oneWire = new OneWire(pin); }
+    while (!returnToMenu) {
+        if (screenNeedsUpdate) {
+            tft.fillScreen(TFT_BLACK);
+            screenNeedsUpdate = false;
         }
-        if (check(NextPress)) {
-            setiButtonPinMenu();
-            delete oneWire;
-            goto Reset;
+        switch (currentState) {
+            case state::SETUP: setupScreen(); break;
+            case state::READING: readingScreen(); break;
+            case state::WRITING: writingScreen(); break;
         }
-        // iButton is plugged
-        if (oneWire->reset() != 0) {
-            // Main Button is pressed
-            if (check(SelPress)) {
-                write_ibutton();
-            } else {
-                read_ibutton();
+        delay(250);
+    }
+    if (oneWire) {
+        delete oneWire;
+        oneWire = nullptr;
+    }
+    currentState = state::SETUP;
+    hasId = false;
+}
+void setupScreen() {
+    /*TODO*/
+    currentState = state::READING;
+    screenNeedsUpdate = true;
+}
+void readingScreen() {
+    if (check(EscPress)) {
+        returnToMenu = true;
+        return;
+    } else if (check(NextPress)) {
+        // TODO: Open id selection
+    } else if (check(SelPress)) {
+        if (hasId) {
+            currentState = state::WRITING;
+            screenNeedsUpdate = true;
+            return;
+        }
+    }
+
+    drawMainBorderWithTitle("Reading iButton");
+    tft.setTextSize(1.75);
+    tft.setCursor(12, 57);
+
+    if (oneWire->reset() != 0) {
+        oneWire->write(0x33);
+        oneWire->read_bytes(buffer, 8);
+
+        hasError = OneWire::crc8(buffer, 7) != buffer[7];
+        if (!hasError) {
+            hasId = true;
+            std::array<byte, 8> newId = std::to_array(buffer);
+            if (currentId != newId) {
+                currentId = newId;
+                screenNeedsUpdate = true;
             }
-            delay(500);
+        }
+    }
+
+    if (!hasId) {
+        tft.print("No iButton detected");
+    } else {
+        for (byte i = 0; i < 8; i++) {
+            if (currentId[i] < 0x10) { tft.print("0"); }
+            tft.print(currentId[i], HEX);
+            if (i < 7) tft.print(":");
         }
     }
 }
 
+void writingScreen() {
+    if (check(EscPress)) {
+        returnToMenu = true;
+        return;
+    } else if (check(NextPress)) {
+        // TODO: Open id selection
+    } else if (check(SelPress)) {
+        if (hasId) {
+            currentState = state::READING;
+            screenNeedsUpdate = true;
+            return;
+        }
+    }
+
+    drawMainBorderWithTitle("Writing iButton");
+    tft.setTextSize(1.75);
+    tft.setCursor(12, 57);
+    tft.print("Writing ");
+    for (byte i = 0; i < 8; i++) {
+        if (currentId[i] < 0x10) { tft.print("0"); }
+        tft.print(currentId[i], HEX);
+        if (i < 7) tft.print(":");
+    }
+}
 void write_byte_rw1990(byte data) {
     int data_bit;
     uint8_t pin = bruceConfigPins.iButton;
@@ -63,16 +135,6 @@ void write_byte_rw1990(byte data) {
         data = data >> 1;
     }
 }
-
-// Not working (((
-// void write_byte_rw1990(byte data) {
-//     for (int data_bit = 0; data_bit < 8; data_bit++) {
-//         delay(25);
-//         // oneWire->write_bit(~data);
-//         oneWire->write_bit(data & 0x01);
-//         data >>= 1;
-//     }
-// }
 
 void write_ibutton() {
 
@@ -181,19 +243,4 @@ void read_ibutton() {
     }
 }
 
-/*********************************************************************
-**  Function: setiButtonPin
-**  Main Menu to manually iButton Pin
-**********************************************************************/
-void setiButtonPinMenu() {
-    options = {};
-    gpio_num_t sel = GPIO_NUM_NC;
-    for (int8_t i = -1; i <= GPIO_NUM_MAX; i++) {
-        String tmp = "GPIO " + String(i);
-        options.push_back({tmp.c_str(), [i, &sel]() { sel = (gpio_num_t)i; }});
-    }
-    loopOptions(options, bruceConfigPins.iButton + 1);
-    options.clear();
-    bruceConfigPins.setiButtonPin(sel);
-}
 #endif

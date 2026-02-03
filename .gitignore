@@ -17,3 +17,4 @@ checksum.sha256
 boot.jpg
 .python-version
 main.cpp.og
+platformio.ini

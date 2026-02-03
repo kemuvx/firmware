@@ -1,8 +1,16 @@
-#ifndef LITE_VERSION
+#ifndef IBUTTON_H
+#define IBUTTON_H
+
 #include <OneWire.h>
 
-void setup_ibutton();
+#ifndef LITE_VERSION
+void iButtonStateManager();
+void setupScreen();
+void readingScreen();
+void writingScreen();
 void write_ibutton();
 void read_ibutton();
-void setiButtonPinMenu();
+void write_byte_rw1990(byte data);
+#endif
+
 #endif
