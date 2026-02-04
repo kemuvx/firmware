@@ -13,6 +13,9 @@
 
 void OthersMenu::optionsMenu() {
     options = {
+#ifndef LITE_VERSION
+        {"iButton",      iButtonStateManager          },
+#endif
         {"QRCodes",      qrcode_menu                  },
         {"Megalodon",    shark_setup                  },
 
@@ -24,12 +27,6 @@ void OthersMenu::optionsMenu() {
 #if !defined(LITE_VERSION) || defined(USB_as_HID)
         {"BadUSB & HID", [this]() { badUsbHidMenu(); }},
 #endif
-
-#ifndef LITE_VERSION
-        {"iButton",      iButtonStateManager          },
-#endif
-
-        // Timer removed - moved to another "Clock"
     };
 
     addOptionToMainMenu();
