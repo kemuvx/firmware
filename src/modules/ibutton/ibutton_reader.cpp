@@ -36,6 +36,8 @@ byte previous_id[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 bool has_id = false;
 bool previous_has_error = false;
 bool has_error = false;
+byte last_crc = 0xFF;
+byte last_expected_crc = 0xFF;
 byte current_crc;
 constexpr int IBUTTON_PIN = 0;
 OneWire *one_wire = nullptr;
@@ -54,6 +56,8 @@ void cleanup_variables() {
     has_id = false;
     previous_has_error = false;
     has_error = false;
+    last_crc = 0xFF;
+    last_expected_crc = 0xFF;
     memset(current_id, 0x00, 8);
     memset(previous_id, 0xFF, 8);
     memset(id_buffer, 0, 8);
@@ -83,12 +87,16 @@ void draw_ibutton_saved() {
 void append_ibutton_id_to_file(const String name, const String formattedId) {
     String file_path = "/ibutton_ids.txt";
     String entry = name + "-" + formattedId + "\n";
-    LittleFS.open(file_path, "a").print(entry);
+    File f = LittleFS.open(file_path, "a");
+    if (f) {
+        f.print(entry);
+        f.close();
+    }
+
     drawMainBorderWithTitle("Read iButton", true);
     draw_ibutton_saved();
     delay(1000);
     drawMainBorderWithTitle("Read iButton", true);
-    boolean has_error = current_crc != current_id[7];
     if (has_error) { draw_ibutton_crc_error(current_crc, current_id[7]); }
     draw_ibutton_id(formattedId);
     draw_button_help();
@@ -168,11 +176,18 @@ void read_ibutton_run() {
             has_error = crc != current_id[7];
 
             if (memcmp(current_id, previous_id, 8)) { draw_ibutton_id(format_ibutton_id(current_id)); }
-
-            if (!has_error && previous_has_error) { draw_black_over_crc_error(); }
-
-            if (has_error && !previous_has_error) { draw_ibutton_crc_error(crc, current_id[7]); }
+            if (has_error) {
+                if (crc != last_crc || current_id[7] != last_expected_crc) {
+                    draw_black_over_crc_error();
+                    draw_ibutton_crc_error(crc, current_id[7]);
+                }
+            } else if (previous_has_error) {
+                draw_black_over_crc_error();
+            }
+            last_crc = crc;
+            last_expected_crc = current_id[7];
         }
+
         previous_has_error = has_error;
         handle_input();
         delay(50);
