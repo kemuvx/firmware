@@ -117,26 +117,34 @@ void readingScreen() {
 }
 
 void writingScreen() {
-
     if (changedScreen) {
         tft.fillScreen(TFT_BLACK);
         drawMainBorderWithTitle("Writing iButton");
-        tft.setTextSize(2);
-        tft.setCursor(12, 57);
-        tft.print("Writing ");
-        tft.setCursor(12, 77);
+        tft.setTextSize(1);
+        tft.setCursor(12, 27);
+        tft.print("TARGET ");
+        tft.setCursor(12, 37);
         for (byte i = 0; i < 8; i++) {
             if (currentId[i] < 0x10) { tft.print("0"); }
             tft.print(currentId[i], HEX);
             if (i < 7) tft.print(":");
         }
+        tft.setCursor(12, 57);
+        tft.setTextSize(2);
+        tft.print("Press next to start");
         changedScreen = false;
     }
+
     if (check(EscPress)) {
         running = false;
         return;
     } else if (check(NextPress)) {
-        // TODO: Open id selection
+        writingSearch();
+        currentState = state::READING;
+        changedScreen = true;
+        delay(100);
+        return;
+
     } else if (check(SelPress)) {
         currentState = state::READING;
         changedScreen = true;
@@ -144,131 +152,114 @@ void writingScreen() {
         return;
     }
 }
+void writingSearch() {
+    int found = false;
+    while (!found) {
+        if (check(SelPress)) {
+            currentState = state::READING;
+            changedScreen = true;
+            return;
+        }
+        if (check(EscPress)) {
+            running = false;
+            return;
+        }
 
-// void write_byte_rw1990(byte data) {
-//     int data_bit;
-//     uint8_t pin = bruceConfigPins.iButton;
-//     for (data_bit = 0; data_bit < 8; data_bit++) {
-//         if (data & 1) {
-//             digitalWrite(pin, LOW);
-//             pinMode(pin, OUTPUT);
-//             delayMicroseconds(60);
-//             pinMode(pin, INPUT);
-//             digitalWrite(pin, HIGH);
-//         } else {
-//             digitalWrite(pin, LOW);
-//             pinMode(pin, OUTPUT);
-//             pinMode(pin, INPUT);
-//             digitalWrite(pin, HIGH);
-//         }
-//         delay(10);
-//         data = data >> 1;
-//     }
-// }
-// void write_ibutton() {
-//     // Dislay ID
-//     tft.fillScreen(TFT_BLACK);
-//     drawMainBorderWithTitle("iButton Write");
-//     tft.setCursor(11, 50);
-//     tft.print("Current idBuffer:");
-//     tft.setCursor(40, 57);
-//     for (byte i = 0; i < 8; i++) {
-//         tft.print(idBuffer[i], HEX);
-//         tft.print(":");
-//     }
-//     delay(1000);
-//     tft.setCursor(52, 102);
-//     tft.print("Wait...");
-//     tft.setCursor(110, 102);
+        bool readRes = readOneWire();
+        if (readRes) {
+            write_ibutton();
+            found = true;
+        }
 
-//     tft.print('-');
-//     oneWire->skip();
-//     oneWire->reset();
-//     oneWire->write(0x33); // Read ROM
+        delay(10);
+    }
+}
+void write_byte_rw1990(byte data) {
+    int data_bit;
+    for (data_bit = 0; data_bit < 8; data_bit++) {
+        if (data & 1) {
+            digitalWrite(pin, LOW);
+            pinMode(pin, OUTPUT);
+            delayMicroseconds(60);
+            pinMode(pin, INPUT);
+            digitalWrite(pin, HIGH);
+        } else {
+            digitalWrite(pin, LOW);
+            pinMode(pin, OUTPUT);
+            pinMode(pin, INPUT);
+            digitalWrite(pin, HIGH);
+        }
+        delay(10);
+        data = data >> 1;
+    }
+}
+void write_ibutton() {
 
-//     oneWire->skip();
-//     oneWire->reset();
-//     oneWire->write(0x3C); // Set write mode for some models
-//     tft.print('-');
-//     delay(50);
+    tft.setCursor(52, 102);
+    tft.print("Wait...");
+    tft.setCursor(110, 102);
 
-//     oneWire->skip();
-//     oneWire->reset();
-//     oneWire->write(0xD1); // Write command
-//     tft.print('-');
-//     delay(50);
+    tft.print('-');
+    oneWire->skip();
+    oneWire->reset();
+    oneWire->write(0x33); // Read ROM
 
-//     // Write don't work without this code
-//     uint8_t pin = bruceConfigPins.iButton;
-//     digitalWrite(pin, LOW);
-//     pinMode(pin, OUTPUT);
-//     delayMicroseconds(60);
-//     pinMode(pin, INPUT);
-//     digitalWrite(pin, HIGH);
-//     delay(10);
+    oneWire->skip();
+    oneWire->reset();
+    oneWire->write(0x3C);
+    tft.print('-');
+    delay(50);
 
-//     oneWire->skip();
-//     oneWire->reset();
-//     oneWire->write(0xD5); // Enter write mode
-//     tft.print('-');
-//     delay(50);
-//     tft.print('>');
-//     for (byte i = 0; i < 8; i++) {
-//         write_byte_rw1990(idBuffer[i]); // Write each byte
-//         tft.print('*');
-//         delayMicroseconds(25);
-//     }
-//     oneWire->reset(); // Reset bus
-//     oneWire->skip();
+    oneWire->skip();
+    oneWire->reset();
+    oneWire->write(0xD1);
+    tft.print('-');
+    delay(50);
 
-//     // Step 3 : Finalise
-//     oneWire->write(0xD1); // End of write command
-//     delayMicroseconds(16);
-//     oneWire->reset(); // Reset bus
+    digitalWrite(pin, LOW);
+    pinMode(pin, OUTPUT);
+    delayMicroseconds(60);
+    pinMode(pin, INPUT);
+    digitalWrite(pin, HIGH);
+    delay(10);
 
-//     // Display end of copy
-//     tft.fillScreen(TFT_BLACK);
-//     tft.setCursor(90, 50);
-//     tft.setTextSize(FM);
-//     displayTextLine("COPIED");
-//     tft.setCursor(40, 80);
-//     tft.print("Release button");
+    oneWire->skip();
+    oneWire->reset();
+    oneWire->write(0xD5);
+    tft.print('-');
+    delay(50);
+    tft.print('>');
+    for (byte i = 0; i < 8; i++) {
+        write_byte_rw1990(currentId[i]);
+        tft.print('*');
+        delayMicroseconds(25);
+    }
+    oneWire->reset();
+    oneWire->skip();
 
-//     delay(3000);
+    oneWire->write(0xD1);
+    delayMicroseconds(16);
+    oneWire->reset();
 
-//     tft.fillScreen(TFT_BLACK);
-//     drawMainBorderWithTitle("iButton");
-//     tft.setCursor(10, 60);
-//     displayTextLine("Waiting iButton...");
-// }
-
-// void read_ibutton() {
-//     oneWire->write(0x33);             // Read ID command
-//     oneWire->read_bytes(idBuffer, 8); // Read ID
-
-//     // Display iButton
-//     tft.fillScreen(TFT_BLACK);
-//     drawMainBorderWithTitle("iButton ID");
-
-//     // Dislay ID
-//     tft.setTextSize(1.75);
-//     tft.setCursor(12, 57);
-//     for (byte i = 0; i < 8; i++) {
-//         tft.print(idBuffer[i], HEX);
-//         tft.print(":");
-//     }
-
-//     if (OneWire::crc8(idBuffer, 7) != idBuffer[7]) {
-//         tft.setCursor(55, 85);
-//         tft.setTextSize(FM);
-//         tft.setTextColor(TFT_RED);
-//         tft.println("CRC ERROR!");
-//     } else {
-//         // Display copy infos
-//         tft.setCursor(55, 85);
-//         tft.setTextSize(1.5);
-//         tft.println("Hold OK to copy");
-//     }
-// }
-
+    tft.setCursor(90, 50);
+    tft.setTextSize(FM);
+    displayTextLine("COPIED");
+    tft.setCursor(40, 80);
+    displayTextLine("Press SEL to return");
+    while (true) {
+        if (check(SelPress)) {
+            currentState = state::READING;
+            memset(currentId, 0, 8);
+            memset(previousId, 0, 8);
+            hasError = false;
+            hasId = false;
+            changedScreen = true;
+            return;
+        }
+        if (check(EscPress)) {
+            running = false;
+            return;
+        }
+    }
+}
 #endif

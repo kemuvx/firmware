@@ -13,9 +13,9 @@
 
 void OthersMenu::optionsMenu() {
     options = {
-#ifndef LITE_VERSION
-        {"iButton",      iButtonStateManager          },
-#endif
+        // #ifndef LITE_VERSION
+        //         {"iButton",      iButtonStateManager          },
+        // #endif
         {"QRCodes",      qrcode_menu                  },
         {"Megalodon",    shark_setup                  },
 

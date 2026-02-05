@@ -19,6 +19,7 @@
 #include "menu_items/RFMenu.h"
 #include "menu_items/ScriptsMenu.h"
 #include "menu_items/WifiMenu.h"
+#include "menu_items/iButtonMenu.h"
 class MainMenu {
 public:
     FileMenu fileMenu;
@@ -29,6 +30,7 @@ public:
     FMMenu fmMenu;
     GpsMenu gpsMenu;
     IRMenu irMenu;
+    IButtonMenu iButtonMenu;
     NRF24Menu nrf24Menu;
     OthersMenu othersMenu;
     RFIDMenu rfidMenu;

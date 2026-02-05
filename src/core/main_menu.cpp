@@ -2,21 +2,23 @@
 #include "display.h"
 #include "utils.h"
 #include <globals.h>
-
 MainMenu::MainMenu() {
     _menuItems = {
         &wifiMenu,
         &bleMenu,
+        &irMenu,
+        &iButtonMenu,
+        &fileMenu,
 #if !defined(LITE_VERSION)
         &ethernetMenu,
 #endif
         &rfMenu,
         &rfidMenu,
-        &irMenu,
+
 #if defined(FM_SI4713) && !defined(LITE_VERSION)
         &fmMenu,
 #endif
-        &fileMenu,
+
         &gpsMenu,
         &nrf24Menu,
 #if !defined(LITE_VERSION)
@@ -25,11 +27,12 @@ MainMenu::MainMenu() {
 #endif
         &loraMenu,
 #endif
-        &othersMenu,
+
         &clockMenu,
 #if !defined(LITE_VERSION)
         &connectMenu,
 #endif
+        &othersMenu,
         &configMenu,
     };
 
