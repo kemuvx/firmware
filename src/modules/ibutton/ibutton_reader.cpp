@@ -33,7 +33,9 @@ void read_ibutton_run();
 byte id_buffer[8];
 byte current_id[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 byte previous_id[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-bool hasId = false;
+bool has_id = false;
+bool previous_has_error = false;
+bool has_error = false;
 byte current_crc;
 constexpr int IBUTTON_PIN = 0;
 OneWire *one_wire = nullptr;
@@ -49,7 +51,9 @@ void cleanup_onewire() {
     }
 }
 void cleanup_variables() {
-    hasId = false;
+    has_id = false;
+    previous_has_error = false;
+    has_error = false;
     memset(current_id, 0x00, 8);
     memset(previous_id, 0xFF, 8);
     memset(id_buffer, 0, 8);
@@ -93,7 +97,7 @@ void append_ibutton_id_to_file(const String name, const String formattedId) {
 byte get_crc8(const byte *data, uint8_t length) { return OneWire::crc8(data, length); }
 
 void handle_input() {
-    if (check(SelPress) && hasId) {
+    if (check(SelPress) && has_id) {
         append_ibutton_id_to_file(get_name_from_keyboard(), format_ibutton_id(current_id));
     }
 
@@ -137,28 +141,39 @@ void draw_button_help() {
     tft.setCursor(12, 117);
     tft.print("Press SEL to save iButton ID");
 }
+void draw_no_ibutton() {
+    tft.setCursor(12, 57);
+    tft.setTextColor(TFT_YELLOW);
+    tft.setTextSize(1);
+    tft.print("No iButton detected");
+}
+
 void read_ibutton_run() {
     init_onewire();
 
     drawMainBorderWithTitle("Read iButton", true);
+    if (!has_id) { draw_no_ibutton(); }
     draw_button_help();
 
     while (!returnToMenu) {
         boolean isCaptured = capture_ibutton(id_buffer);
         if (isCaptured) {
-            hasId = true;
+            has_id = true;
+
             memcpy(previous_id, current_id, 8);
             memcpy(current_id, id_buffer, 8);
-            if (memcmp(current_id, previous_id, 8)) {
-                byte crc = get_crc8(current_id, 7);
-                current_crc = crc;
-                boolean has_error = crc != current_id[7];
-                if (has_error) { draw_ibutton_crc_error(crc, current_id[7]); }
 
-                if (!has_error) { draw_black_over_crc_error(); }
-                draw_ibutton_id(format_ibutton_id(current_id));
-            }
+            byte crc = get_crc8(current_id, 7);
+            current_crc = crc;
+            has_error = crc != current_id[7];
+
+            if (memcmp(current_id, previous_id, 8)) { draw_ibutton_id(format_ibutton_id(current_id)); }
+
+            if (!has_error && previous_has_error) { draw_black_over_crc_error(); }
+
+            if (has_error && !previous_has_error) { draw_ibutton_crc_error(crc, current_id[7]); }
         }
+        previous_has_error = has_error;
         handle_input();
         delay(50);
     }
