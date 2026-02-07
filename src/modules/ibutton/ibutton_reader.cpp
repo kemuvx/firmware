@@ -3,10 +3,13 @@
 #include "core/menu_items/iButtonMenu.h"
 #include "core/mykeyboard.h"
 #include "core/utils.h"
+#include "ibutton_helper.h"
 #include <iostream>
 #include <utility>
 #include <vector>
+
 // ========== FORWARD DECLARATIONS ==========
+namespace {
 // Drawing functions
 void draw_ibutton_saved();
 void draw_ibutton_save_failed();
@@ -25,7 +28,6 @@ void init_onewire();
 void cleanup_onewire();
 void cleanup_variables();
 bool read_rom(byte *buffer);
-String format_ibutton_id(const byte *id);
 byte get_crc8(const byte *data, uint8_t length);
 
 // Array operations
@@ -36,22 +38,17 @@ bool check_id_already_saved();
 
 // File operations
 void append_ibutton_id_to_file(const String name, const String formattedId);
-void parse_saved_ibuttons();
-std::array<byte, 8> parse_byte_string(String str);
-
 // User input
 String get_name_from_keyboard();
 void handle_input();
 void delay_with_input_handling(unsigned long ms);
-
-// Main function
-void read_ibutton_run();
 // ==========================================
-
+} // namespace
+namespace {
+std::vector<std::pair<String, std::array<byte, 8>>> saved_ibuttons = {};
 byte id_buffer[8];
 byte current_id[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 byte previous_id[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-std::vector<std::pair<String, std::array<byte, 8>>> saved_ibuttons = {};
 bool has_id = false;
 bool previous_has_error = false;
 bool has_error = false;
@@ -59,10 +56,9 @@ bool crc_changed = false;
 byte last_crc = 0xFF;
 byte last_expected_crc = 0xFF;
 byte current_crc;
-constexpr int IBUTTON_PIN = 0;
-constexpr char FILENAME[] = "/ibuttons.txt";
 OneWire *one_wire = nullptr;
-
+} // namespace
+namespace {
 void init_onewire() {
     if (one_wire == nullptr) { one_wire = new OneWire(IBUTTON_PIN); }
 }
@@ -91,17 +87,6 @@ String get_name_from_keyboard() {
     return name;
 }
 
-String format_ibutton_id(const byte *id) {
-    String strId = "";
-    for (int i = 0; i < 8; i++) {
-        if (id[i] < 16) strId += "0";
-        String hexByte = String(id[i], HEX);
-        hexByte.toUpperCase();
-        strId += hexByte;
-        if (i < 7) strId += ":";
-    }
-    return strId;
-}
 void draw_ibutton_saved() {
     tft.setCursor(32, 57);
     tft.setTextColor(TFT_GREEN);
@@ -136,33 +121,6 @@ void append_ibutton_id_to_file(const String name, const String formattedId) {
     f.close();
     delay_with_input_handling(1000);
     draw_read();
-}
-
-std::array<byte, 8> parse_byte_string(String str) {
-    std::array<byte, 8> arr = {};
-    int i = 0;
-    int byte_count = 0;
-    while (byte_count < 8) {
-        String str_byte = str.substring(i, i + 2);
-        arr[byte_count] = static_cast<byte>(strtol(str_byte.c_str(), nullptr, 16));
-        i += 3;
-        byte_count++;
-    }
-
-    return arr;
-}
-void parse_saved_ibuttons() {
-    File f = LittleFS.open(FILENAME, "r");
-    if (!f) return;
-    while (f.available()) {
-        String line = f.readStringUntil('\n');
-        int last_space = line.lastIndexOf(' ');
-        if (last_space == -1) continue;
-        String name = line.substring(0, last_space);
-        String byte_string = line.substring(last_space + 1);
-        auto byte_arr = parse_byte_string(byte_string);
-        saved_ibuttons.emplace(saved_ibuttons.begin(), name, byte_arr);
-    }
 }
 
 byte get_crc8(const byte *data, uint8_t length) { return OneWire::crc8(data, length); }
@@ -250,8 +208,6 @@ bool read_rom(byte *buffer) {
 void draw_ibutton_id(String id) {
     draw_black_over_id();
     tft.setCursor(12, 57);
-    tft.fillRect(12, 57, 220, 30, bruceConfig.bgColor);
-    tft.setCursor(12, 57);
     tft.setTextColor(bruceConfig.priColor);
     tft.setTextSize(1);
     tft.print("ID " + id);
@@ -281,12 +237,12 @@ void draw_no_ibutton() {
     tft.setCursor(12, 57);
     tft.setTextColor(TFT_YELLOW);
     tft.setTextSize(1);
-    tft.print("No iButton detected");
+    tft.print("Waiting for iButton...");
 }
-
+} // namespace
 void read_ibutton_run() {
     init_onewire();
-    parse_saved_ibuttons();
+    parse_saved_ibuttons(saved_ibuttons);
     draw_read();
 
     while (!returnToMenu) {
