@@ -11,16 +11,17 @@
 #include "modules/wifi/clients.h"
 #include "modules/wifi/evil_portal.h"
 #include "modules/wifi/karma_attack.h"
+#include "modules/wifi/netcut.h"
 #include "modules/wifi/responder.h"
 #include "modules/wifi/scan_hosts.h"
 #include "modules/wifi/sniffer.h"
 #include "modules/wifi/wifi_atks.h"
 
-
-
 #ifndef LITE_VERSION
-#include "modules/wifi/wifi_recover.h"
 #include "modules/pwnagotchi/pwnagotchi.h"
+#include "modules/wifi/channel_analyzer.h"
+#include "modules/wifi/jam_detect.h"
+#include "modules/wifi/wifi_recover.h"
 #endif
 
 // #include "modules/reverseShell/reverseShell.h"
@@ -34,6 +35,7 @@
 
 // 32bit: https://github.com/9dl/Bruce-C2/releases/download/v1.0/BruceC2_windows_386.exe
 // 64bit: https://github.com/9dl/Bruce-C2/releases/download/v1.0/BruceC2_windows_amd64.exe
+#include "modules/wifi/socks4_proxy.h"
 #include "modules/wifi/tcp_utils.h"
 
 // global toggle - controls whether scanNetworks includes hidden SSIDs
@@ -42,20 +44,9 @@ bool showHiddenNetworks = false;
 void WifiMenu::optionsMenu() {
     returnToMenu = false;
     options.clear();
-    if (isWebUIActive) {
-        drawMainBorderWithTitle("WiFi", true);
-        padprintln("");
-        padprintln("Starting a Wifi function will probably make the WebUI stop working");
-        padprintln("");
-        padprintln("Sel: to continue");
-        padprintln("Any key: to Menu");
-        while (1) {
-            if (check(SelPress)) { break; }
-            if (check(AnyKeyPress)) { return; }
-            vTaskDelay(10 / portTICK_PERIOD_MS);
-        }
-    }
-    if (WiFi.status() != WL_CONNECTED) {
+    // Note: WiFi features will cleanly stop WebUI automatically when they start
+    // User can navigate menu normally even with WebUI active
+    if (!WiFi.isConnected() && !WiFi.AP.started()) {
         options = {
             {"Connect to Wifi", lambdaHelper(wifiConnectMenu, WIFI_STA)},
             {"Start WiFi AP", [=]() {
@@ -65,34 +56,28 @@ void WifiMenu::optionsMenu() {
         };
     }
     if (WiFi.getMode() != WIFI_MODE_NULL) { options.push_back({"Turn Off WiFi", wifiDisconnect}); }
-    if (WiFi.getMode() == WIFI_MODE_STA || WiFi.getMode() == WIFI_MODE_APSTA) {
+    if (WiFi.getMode() & WIFI_MODE_STA && WiFi.isConnected()) {
         options.push_back({"AP info", displayAPInfo});
     }
     options.push_back({"Wifi Atks", wifi_atk_menu});
     options.push_back({"Evil Portal", [=]() {
-                           if (isWebUIActive || server) {
-                               stopWebUi();
-                               wifiDisconnect();
-                           }
+                           // WebUI cleanup now handled automatically inside EvilPortal constructor
                            EvilPortal();
                        }});
+    options.push_back({"NetCut", [=]() { netcutMenu(); }});
     // options.push_back({"ReverseShell", [=]()       { ReverseShell(); }});
 #ifndef LITE_VERSION
     options.push_back({"Listen TCP", listenTcpPort});
     options.push_back({"Client TCP", clientTCP});
+    options.push_back({"SOCKS4 Proxy", []() { socks4Proxy(1080); }});
     options.push_back({"TelNET", telnet_setup});
     options.push_back({"SSH", lambdaHelper(ssh_setup, String(""))});
-    options.push_back({"Sniffers", [this]() {
-                           std::vector<Option> snifferOptions;
-                           snifferOptions.push_back({"Raw Sniffer", sniffer_setup});
-                           snifferOptions.push_back({"Probe Sniffer", karma_setup});
-                           snifferOptions.push_back({"Back", [this]() { optionsMenu(); }});
-
-                           loopOptions(snifferOptions, MENU_TYPE_SUBMENU, "Sniffers");
-                       }});
+    options.push_back({"Sniffer", sniffer_setup});
+    options.push_back({"Channel Analyzer", channel_analyzer_setup});
+    options.push_back({"Jam Detect", jam_detect_setup});
     options.push_back({"Scan Hosts", [=]() {
                            bool doScan = true;
-                           if (!wifiConnected) doScan = wifiConnectMenu();
+                           if (!WiFi.isConnected()) doScan = wifiConnectMenu();
 
                            if (doScan) {
                                esp_netif_t *esp_netinterface =
@@ -109,7 +94,7 @@ void WifiMenu::optionsMenu() {
     options.push_back({"Brucegotchi", brucegotchi_start});
     options.push_back({"WiFi Pass Recovery", wifi_recover_menu});
 #endif
-    
+
     options.push_back({"Config", [this]() { configMenu(); }});
 
     addOptionToMainMenu();
@@ -125,11 +110,16 @@ void WifiMenu::configMenu() {
     wifiOptions.push_back({"Change MAC", wifiMACMenu});
     wifiOptions.push_back({"Add Evil Wifi", addEvilWifiMenu});
     wifiOptions.push_back({"Remove Evil Wifi", removeEvilWifiMenu});
+    wifiOptions.push_back({bruceConfig.TerminalLog ? "SSH/Telnet Log OFF" : "SSH/Telnet Log ON", [this]() {
+                               bruceConfig.setTerminalLog(!bruceConfig.TerminalLog);
+                               configMenu();
+                           }});
 
     // Evil Wifi Settings submenu (unchanged)
     wifiOptions.push_back({"Evil Wifi Settings", [this]() {
                                std::vector<Option> evilOptions;
 
+                               evilOptions.push_back({"Set Gateway IP", setEvilGatewayIp});
                                evilOptions.push_back({"Password Mode", setEvilPasswordMode});
                                evilOptions.push_back({"Rename /creds", setEvilEndpointCreds});
                                evilOptions.push_back({"Allow /creds access", setEvilAllowGetCreds});
