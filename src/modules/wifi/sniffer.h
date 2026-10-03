@@ -1,4 +1,5 @@
 #pragma once
+#if !defined(LITE_VERSION)
 #include <Arduino.h>
 #include <FS.h>
 #include <SD.h>
@@ -60,6 +61,7 @@ bool sniffer_prepare_storage(FS *fs, bool sdDetected);
 void sniffer_wait_for_flush(uint32_t timeoutMs = 2000);
 void sniffer_reset_handshake_cache();
 void markHandshakeReady(uint64_t key);
+bool sniffer_is_handshake_ready(uint64_t bssidKey);
 
 extern std::set<BeaconList> registeredBeacons;
 extern std::set<String> SavedHS;
@@ -73,3 +75,5 @@ bool writeHeader(File file);
 void sniffer_setup();
 
 void sniffer(void *buf, wifi_promiscuous_pkt_type_t type);
+
+#endif

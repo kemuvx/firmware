@@ -1,6 +1,7 @@
 #ifndef __RF_UTILS_H__
 #define __RF_UTILS_H__
 
+#include "protocols/rf_keeloq.h" // KeeLoq cipher/keystore + bitAt/g5/KEELOQ_* macros
 #include "structs.h"
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 // ESP-IDF 5.5 based framework determines the channels autommatically
@@ -30,5 +31,9 @@ void addToRecentCodes(struct RfCodes rfcode);
 struct RfCodes selectRecentRfMenu();
 bool setMHZMenu();
 void rf_range_selection(float currentFrequency = 0.0);
+
+uint64_t reverse_bits(uint64_t num, uint8_t bits);
+
+String rf_subghz_header(float frequencyMHz);
 
 #endif

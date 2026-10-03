@@ -1,17 +1,16 @@
-#ifndef IBUTTON_H
-#define IBUTTON_H
+#ifndef LITE_VERSION
+#pragma once
 
 #include <OneWire.h>
 
-#ifndef LITE_VERSION
-void iButtonStateManager();
-bool readOneWire(byte *buffer[8]);
-void readingScreen();
-void writingScreen();
-void writingSearch();
-void write_ibutton();
-void write_byte_rw1990(byte data);
+enum IButtonResult {
+    IBUTTON_SUCCESS = 0,
+    IBUTTON_FAILURE,
+    IBUTTON_NO_KEY,
+    IBUTTON_CRC_ERROR,
+};
 
-#endif
+void setup_ibutton();
+void setiButtonPinMenu();
 
 #endif

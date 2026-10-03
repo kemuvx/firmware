@@ -16,7 +16,10 @@ public:
         return false; // or bruceConfig.theme.ibutton if it exists
     }
 
-    String themePath() override { return ""; }
+    const String &themePath() override {
+        static const String empty;
+        return empty;
+    }
 
 private:
     void configMenu(void);
